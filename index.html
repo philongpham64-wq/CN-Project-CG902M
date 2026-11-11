@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Motion Equation Lab</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="header">
+    <div class="brand">
+        <div class="logo">∑</div>
+        <div>
+            <span>STEM LEARNING PROJECT</span>
+            <h1>AI MOTION EQUATION LAB</h1>
+        </div>
+    </div>
+    <div class="header-tag">TOÁN 9 · BÀI 4</div>
+</header>
+
+<main>
+    <section class="hero">
+        <span class="eyebrow">MÔ HÌNH HÓA · GIẢI TOÁN · KIỂM CHỨNG</span>
+        <h2>Khám phá chuyển động bằng <span>phương trình.</span></h2>
+        <p>
+            Phòng thí nghiệm tương tác giúp học sinh tìm vận tốc,
+            giải phương trình và kiểm chứng kết quả thông qua đồ thị
+            độ dịch chuyển – thời gian.
+        </p>
+    </section>
+
+    <div class="layout">
+
+        <!-- KHU VỰC NHẬP DỮ LIỆU -->
+        <aside class="card">
+            <h3>01. DỮ LIỆU BÀI TOÁN</h3>
+
+            <div class="field">
+                <label>Quãng đường s (km)</label>
+                <input type="text" id="distance" value="120">
+            </div>
+
+            <div class="field">
+                <label>Chênh lệch vận tốc Δv (km/h)</label>
+                <input type="text" id="deltaV" value="20">
+            </div>
+
+            <div class="field">
+                <label>Chênh lệch thời gian Δt (giờ)</label>
+                <input type="text" id="deltaT" value="1">
+            </div>
+
+            <p class="hint">
+                Hai phương tiện cùng xuất phát từ A, đi cùng quãng đường
+                đến B. Xe nhanh hơn đến sớm hơn Δt giờ.
+            </p>
+
+            <button class="btn primary" onclick="calculate()">
+                TÍNH TOÁN
+            </button>
+
+            <button class="btn secondary" onclick="loadSample()">
+                BÀI MẪU T1
+            </button>
+
+            <button class="btn reset" onclick="resetAll()">
+                RESET
+            </button>
+
+            <div id="notice"></div>
+
+            <h3 class="subheading">02. BỘ KIỂM THỬ</h3>
+            <div id="tests" class="tests"></div>
+        </aside>
+
+        <!-- KHU VỰC KẾT QUẢ -->
+        <section class="right">
+
+            <div class="card">
+                <h3>03. KẾT QUẢ CHUYỂN ĐỘNG</h3>
+                <div id="metrics" class="empty">
+                    Nhập dữ liệu và nhấn TÍNH TOÁN để bắt đầu.
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>04. MÔ HÌNH HÓA VÀ LỜI GIẢI</h3>
+                <div id="steps" class="empty">
+                    Các bước giải sẽ xuất hiện tại đây.
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>05. ĐỒ THỊ ĐỘ DỊCH CHUYỂN – THỜI GIAN</h3>
+
+                <div class="legend">
+                    <span class="slow-dot"></span> Xe chậm
+                    <span class="fast-dot"></span> Xe nhanh
+                </div>
+
+                <canvas id="chart" width="900" height="360"></canvas>
+            </div>
+
+            <div class="card">
+                <h3>06. MÔ PHỎNG CHUYỂN ĐỘNG</h3>
+
+                <div class="road">
+                    <div id="car" class="vehicle car">🚗</div>
+                    <div id="bus" class="vehicle bus">🚌</div>
+                </div>
+
+                <div class="simulation-controls">
+                    <button class="btn primary" onclick="play()">▶ PLAY</button>
+                    <button class="btn secondary" onclick="pause()">Ⅱ PAUSE</button>
+                    <button class="btn reset" onclick="restart()">↺ RESET</button>
+                </div>
+
+                <input type="range" id="timeSlider"
+                       min="0" max="100" value="0">
+
+                <p id="simStatus">0 giờ</p>
+            </div>
+
+        </section>
+    </div>
+</main>
+
+<footer>
+    AI MOTION EQUATION LAB · TOÁN HỌC × VẬT LÍ × CÔNG NGHỆ
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+
+let model = null;
+let timer = null;
+let elapsed = 0;
+
+const testCases = [
+    {id:"T1",s:120,dv:20,dt:1,ok:true},
+    {id:"T2",s:90,dv:15,dt:1,ok:true},
+    {id:"T3",s:180,dv:30,dt:1,ok:true},
+    {id:"T4",s:96,dv:8,dt:1,ok:true},
+    {id:"T5",s:0,dv:20,dt:1,ok:false},
+    {id:"T6",s:120,dv:0,dt:1,ok:false},
+    {id:"T7",s:120,dv:20,dt:0,ok:false},
+    {id:"T8",s:"abc",dv:20,dt:1,ok:false},
+    {id:"T9",s:"",dv:20,dt:1,ok:false}
+];
+
+function format(n) {
+    return Number(n).toLocaleString("vi-VN", {
+        maximumFractionDigits: 3
+    });
+}
+
+// KIỂM TRA DỮ LIỆU
+function validateInput() {
+    const values = [
+        $("distance").value.trim(),
+        $("deltaV").value.trim(),
+        $("deltaT").value.trim()
+    ];
+
+    const names = ["Quãng đường s", "Δv", "Δt"];
+
+    for(let i=0;i<3;i++) {
+        if(values[i] === "")
+            return {error:names[i]+" không được để trống."};
+
+        if(!Number.isFinite(Number(values[i])))
+            return {error:names[i]+" phải là số."};
+    }
+
+    const [s,dv,dt] = values.map(Number);
+
+    if(s<=0) return {error:"Điều kiện s > 0 không thỏa mãn."};
+    if(dv<=0) return {error:"Điều kiện Δv > 0 không thỏa mãn."};
+    if(dt<=0) return {error:"Điều kiện Δt > 0 không thỏa mãn."};
+
+    return {s,dv,dt};
+}
+
+// GIẢI MÔ HÌNH
+function solveModel(s,dv,dt) {
+
+    // s/x - s/(x+dv) = dt
+
+    const a=dt;
+    const b=dt*dv;
+    const c=-s*dv;
+
+    const delta=b*b-4*a*c;
+
+    const x=(-b+Math.sqrt(delta))/(2*a);
+
+    const fast=x+dv;
+
+    const tSlow=s/x;
+    const tFast=s/fast;
+
+    return {
+        s,dv,dt,x,fast,tSlow,tFast,
+        delta,
+        check:Math.abs(tSlow-tFast-dt)
+    };
+}
+
+// HIỂN THỊ KẾT QUẢ
+function renderResult(m) {
+
+    model=m;
+
+    $("metrics").className="metrics";
+
+    $("metrics").innerHTML=`
+        <div class="metric">
+            <small>Vận tốc xe chậm</small>
+            <strong>${format(m.x)}</strong>
+            km/h
+        </div>
+
+        <div class="metric">
+            <small>Vận tốc xe nhanh</small>
+            <strong>${format(m.fast)}</strong>
+            km/h
+        </div>
+
+        <div class="metric">
+            <small>Thời gian xe chậm</small>
+            <strong>${format(m.tSlow)}</strong>
+            giờ
+        </div>
+
+        <div class="metric">
+            <small>Thời gian xe nhanh</small>
+            <strong>${format(m.tFast)}</strong>
+            giờ
+        </div>
+    `;
+
+    const resultSteps = [
+        ["Đặt ẩn",
+        `Gọi x là vận tốc xe chậm. Xe nhanh có vận tốc x + ${m.dv}.`],
+
+        ["Điều kiện",
+        `x > 0; x ≠ 0; x + ${m.dv} ≠ 0.`],
+
+        ["Lập phương trình",
+        `s/x - s/(x + Δv) = Δt`],
+
+        ["Thay dữ liệu",
+        `${m.s}/x - ${m.s}/(x + ${m.dv}) = ${m.dt}`],
+
+        ["Quy đồng",
+        `${format(m.a)}x² + ${format(m.b)}x - ${format(m.s*m.dv)} = 0`],
+
+        ["Tính nghiệm",
+        `Δ = ${format(m.delta)}. Nghiệm dương x = ${format(m.x)}. Nghiệm âm bị loại.`],
+
+        ["Kết luận",
+        `Xe chậm: ${format(m.x)} km/h. Xe nhanh: ${format(m.fast)} km/h.`],
+
+        ["Kiểm chứng",
+        `${format(m.tSlow)} - ${format(m.tFast)} = ${format(m.tSlow-m.tFast)} giờ. Sai số: ${m.check.toExponential(2)}.`]
+    ];
+
+    $("steps").className="steps";
+
+    $("steps").innerHTML=resultSteps.map((s,i)=>`
+        <div class="step">
+            <b>${String(i+1).padStart(2,"0")}</b>
+            <div>
+                <strong>${s[0]}</strong>
+                <p>${s[1]}</p>
+            </div>
+        </div>
+    `).join("");
+
+    drawChart(m);
+    elapsed=0;
+    updateSimulation();
+
+    $("notice").textContent="Tính toán thành công. Kết quả đã vượt qua kiểm chứng.";
+    $("notice").className="success";
+}
+
+// TÍNH TOÁN
+function calculate() {
+
+    pause();
+
+    const input=validateInput();
+
+    if(input.error) {
+        model=null;
+        $("metrics").className="empty";
+        $("metrics").textContent="Dữ liệu không hợp lệ. Không hiển thị kết quả.";
+        $("steps").className="empty";
+        $("steps").textContent="Hãy kiểm tra lại dữ liệu đầu vào.";
+
+        $("notice").textContent=input.error;
+        $("notice").className="error";
+        return;
+    }
+
+    const m=solveModel(input.s,input.dv,input.dt);
+
+    if(!(m.x>0) || m.check>1e-8) {
+        $("notice").textContent="Kết quả không vượt qua kiểm chứng.";
+        $("notice").className="error";
+        return;
+    }
+
+    renderResult(m);
+}
+
+// ĐỒ THỊ
+function drawChart(m) {
+
+    const canvas=$("chart");
+    const ctx=canvas.getContext("2d");
+
+    const w=canvas.width;
+    const h=canvas.height;
+
+    ctx.clearRect(0,0,w,h);
+
+    const L=65,R=25,T=25,B=50;
+
+    const maxT=Math.max(m.tSlow,m.tFast)*1.15;
+    const maxD=m.s*1.15;
+
+    const X=t=>L+t/maxT*(w-L-R);
+    const Y=d=>h-B-d/maxD*(h-T-B);
+
+    ctx.font="12px Arial";
+    ctx.strokeStyle="#29395f";
+    ctx.fillStyle="#9baaca";
+
+    for(let i=0;i<=5;i++) {
+
+        let d=maxD*i/5;
+        let y=Y(d);
+
+        ctx.beginPath();
+        ctx.moveTo(L,y);
+        ctx.lineTo(w-R,y);
+        ctx.stroke();
+
+        ctx.textAlign="right";
+        ctx.fillText(format(d),L-10,y+4);
+    }
+
+    for(let i=0;i<=5;i++) {
+
+        let t=maxT*i/5;
+        let x=X(t);
+
+        ctx.beginPath();
+        ctx.moveTo(x,T);
+        ctx.lineTo(x,h-B);
+        ctx.stroke();
+
+        ctx.textAlign="center";
+        ctx.fillText(format(t),x,h-B+20);
+    }
+
+    ctx.fillStyle="#eef4ff";
+    ctx.textAlign="center";
+    ctx.fillText("Thời gian t (giờ)",w/2,h-8);
+
+    ctx.save();
+    ctx.translate(15,h/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText("Độ dịch chuyển d (km)",0,0);
+    ctx.restore();
+
+    function line(v,color,label) {
+
+        ctx.strokeStyle=color;
+        ctx.lineWidth=3;
+
+        ctx.beginPath();
+        ctx.moveTo(X(0),Y(0));
+        ctx.lineTo(X(m.s/v),Y(m.s));
+        ctx.stroke();
+
+        ctx.fillStyle=color;
+        ctx.fillText(label,X(m.s/v)-25,Y(m.s)-12);
+    }
+
+    line(m.x,"#58d8ef","Xe chậm");
+    line(m.fast,"#ff8fba","Xe nhanh");
+}
+
+// MÔ PHỎNG
+function updateSimulation() {
+
+    if(!model) return;
+
+    const total=Math.max(model.tSlow,model.tFast);
+
+    const pFast=Math.min(100,elapsed/model.tFast*100);
+    const pSlow=Math.min(100,elapsed/model.tSlow*100);
+
+    $("car").style.left=pFast+"%";
+    $("bus").style.left=pSlow+"%";
+
+    $("timeSlider").value=elapsed/total*100;
+
+    $("simStatus").textContent=
+        format(elapsed)+" / "+format(total)+" giờ";
+}
+
+function play() {
+
+    if(!model) {
+        $("notice").textContent="Hãy tính toán trước khi chạy mô phỏng.";
+        $("notice").className="error";
+        return;
+    }
+
+    if(timer) return;
+
+    if(elapsed>=Math.max(model.tSlow,model.tFast))
+        elapsed=0;
+
+    timer=setInterval(()=>{
+
+        elapsed+=0.03;
+
+        if(elapsed>=Math.max(model.tSlow,model.tFast)) {
+            elapsed=Math.max(model.tSlow,model.tFast);
+            pause();
+        }
+
+        updateSimulation();
+
+    },30);
+}
+
+function pause() {
+    clearInterval(timer);
+    timer=null;
+}
+
+function restart() {
+    pause();
+    elapsed=0;
+    updateSimulation();
+}
+
+$("timeSlider").addEventListener("input",e=>{
+    if(!model) return;
+    pause();
+    elapsed=Number(e.target.value)/100*
+        Math.max(model.tSlow,model.tFast);
+    updateSimulation();
+});
+
+// BỘ KIỂM THỬ
+function loadTest(t) {
+
+    $("distance").value=t.s;
+    $("deltaV").value=t.dv;
+    $("deltaT").value=t.dt;
+
+    if(t.ok) {
+        calculate();
+    } else {
+        calculate();
+    }
+}
+
+function loadSample() {
+    $("distance").value=120;
+    $("deltaV").value=20;
+    $("deltaT").value=1;
+    calculate();
+}
+
+function resetAll() {
+
+    pause();
+
+    $("distance").value="";
+    $("deltaV").value="";
+    $("deltaT").value="";
+
+    model=null;
+    elapsed=0;
+
+    $("metrics").className="empty";
+    $("metrics").textContent="Nhập dữ liệu để bắt đầu.";
+
+    $("steps").className="empty";
+    $("steps").textContent="Lời giải sẽ xuất hiện tại đây.";
+
+    $("notice").textContent="";
+    $("notice").className="";
+
+    $("car").style.left="0%";
+    $("bus").style.left="0%";
+
+    $("simStatus").textContent="0 giờ";
+
+    const ctx=$("chart").getContext("2d");
+    ctx.clearRect(0,0,900,360);
+}
+
+$("tests").innerHTML=testCases.map(t=>`
+    <button class="test" onclick="loadTest(testCases[${testCases.indexOf(t)}])">
+        <b>${t.id}</b>
+        <span>${t.ok?"Dữ liệu hợp lệ":"Dữ liệu lỗi"}</span>
+    </button>
+`).join("");
+
+calculate();
+</script>
+
+</body>
+</html>
